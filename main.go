@@ -11,25 +11,32 @@ import (
 func main() {
 	// secret.txtからurlを取得
 	b, err := ioutil.ReadFile("secret.txt")
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	errCheck(err)
 	url := string(b)
 
 	// slackのwebhookよしなに
 	data := `{"text":"Hello from golang(use secret.txt)"}`
-	req, _ := http.NewRequest(
+	req, err := http.NewRequest(
 		"POST",
 		url,
 		bytes.NewBuffer([]byte(data)),
 	)
+	errCheck(err)
 	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{}
-	resp, _ := client.Do(req)
-	body, _ := ioutil.ReadAll(resp.Body)
+	resp, err := client.Do(req)
+	errCheck(err)
+	body, err := ioutil.ReadAll(resp.Body)
+	errCheck(err)
 	defer resp.Body.Close()
 
 	fmt.Println(string(body))
+}
+
+func errCheck(err error) {
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 }
