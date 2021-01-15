@@ -143,7 +143,6 @@ func main() {
 
 	msg := ""
 	for _, v := range cves.Result.CVEItems {
-
 		if dbCheck(v.Cve.CVEDataMeta.ID) {
 			msg = fmt.Sprint("<"+v.Cve.References.ReferenceData[0].URL+"|"+v.Cve.CVEDataMeta.ID+">", "[", v.Impact.BaseMetricV3.ImpactScore, "]", v.Cve.Description.DescriptionData[0].Value)
 			// slackのwebhookよしなに
@@ -193,6 +192,7 @@ func dbCheck(id string) bool {
 			panic(err)
 		}
 	}
+	fmt.Println(id, flag)
 
 	return flag == "0"
 }
@@ -203,8 +203,9 @@ func setFlag(id string) {
 		log.Fatal(err)
 	}
 	defer db.Close()
-	_, err = db.Exec("insert into docker value ('?', 1);", id)
+	ins, err := db.Prepare("insert into docker values ('?', 1)")
 	if err != nil {
-		log.Fatal("b", err)
+		log.Fatal(err)
 	}
+	ins.Exec(id)
 }
