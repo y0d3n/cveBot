@@ -121,7 +121,6 @@ type Database struct {
 }
 
 func main() {
-
 	// nvdからjsonとってきてよしなに
 	nvdURL := "https://services.nvd.nist.gov/rest/json/cves/1.0"
 	resp, err := http.Get(nvdURL)
@@ -174,57 +173,38 @@ func main() {
 			setFlag(v.Cve.CVEDataMeta.ID)
 		}
 	}
-
 }
 
 func dbCheck(id string) bool {
 	db, err := sql.Open("mysql", "docker:docker@tcp(localhost:3306)/docker")
 	if err != nil {
-		panic(err.Error())
+		log.Fatal(err)
 	}
 	defer db.Close()
-
-	rows, err := db.Query("SELECT * FROM docker where id ='" + id + "'")
+	var flag string
+	rows, err := db.Query("select flag from docker where id = ?;", id)
 	if err != nil {
-		panic(err.Error())
+		log.Fatal("a", err)
 	}
-	defer rows.Close()
 
-	var database Database
 	for rows.Next() {
-		err := rows.Scan(&database.ID, &database.Flag)
+		err := rows.Scan(&flag)
 		if err != nil {
-			panic(err.Error())
+			panic(err)
 		}
-		fmt.Println(database.ID, database.Flag)
-	}
-	err = rows.Err()
-	if err != nil {
-		panic(err.Error())
 	}
 
-	if database.Flag == 0 {
-		return true
-	}
-	return false
-
+	return flag == "0"
 }
 
 func setFlag(id string) {
 	db, err := sql.Open("mysql", "docker:docker@tcp(localhost:3306)/docker")
 	if err != nil {
-		panic(err.Error())
+		log.Fatal(err)
 	}
 	defer db.Close()
-
-	rows, err := db.Query("insert into docker values ('" + id + "', 1);")
+	_, err = db.Exec("insert into docker value ('?', 1);", id)
 	if err != nil {
-		panic(err.Error())
-	}
-	defer rows.Close()
-
-	err = rows.Err()
-	if err != nil {
-		panic(err.Error())
+		log.Fatal("b", err)
 	}
 }
