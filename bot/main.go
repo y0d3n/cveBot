@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -140,13 +139,13 @@ func main() {
 	}
 
 	// envからslack botのurlを取得
-	slackURL := os.Getenv("cveBotUrl")
+	b, err := ioutil.ReadFile("secret.txt")
+	slackURL := string(b)
 
 	msg := ""
 	for _, v := range cves.Result.CVEItems {
 
 		if dbCheck(v.Cve.CVEDataMeta.ID) {
-			setFlag(v.Cve.CVEDataMeta.ID)
 			msg = fmt.Sprint("<"+v.Cve.References.ReferenceData[0].URL+"|"+v.Cve.CVEDataMeta.ID+">", "[", v.Impact.BaseMetricV3.ImpactScore, "]", v.Cve.Description.DescriptionData[0].Value)
 			// slackのwebhookよしなに
 			data := `{"text":"` + msg + `"}`
@@ -172,6 +171,7 @@ func main() {
 			defer resp.Body.Close()
 
 			fmt.Println(string(body))
+			setFlag(v.Cve.CVEDataMeta.ID)
 		}
 	}
 
