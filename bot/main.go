@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -139,8 +140,7 @@ func main() {
 	}
 
 	// envからslack botのurlを取得
-	b, err := ioutil.ReadFile("secret.txt")
-	slackURL := string(b)
+	slackURL := os.Getenv("cveBotUrl")
 
 	msg := ""
 	for _, v := range cves.Result.CVEItems {
