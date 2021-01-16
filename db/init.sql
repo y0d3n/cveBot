@@ -4,5 +4,5 @@ use docker;
 drop table if exists docker;
 create table docker (
     id char(50),
-    flag int
+    modDate char(50)
 );

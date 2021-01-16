@@ -135,16 +135,16 @@ func main() {
 	// envからslack botのurlを取得
 	slackURL := os.Getenv("cveBotUrl")
 
-	msg := ""
-
 	db, err := sql.Open("mysql", "docker:docker@tcp(localhost:3306)/docker")
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer db.Close()
 
+	msg := ""
+
 	for _, v := range cves.Result.CVEItems {
-		if dbCheck(db, v.Cve.CVEDataMeta.ID) {
+		if dbCheck(db, v.Cve.CVEDataMeta.ID, v.LastModifiedDate) {
 			msg = fmt.Sprint("<"+v.Cve.References.ReferenceData[0].URL+"|"+v.Cve.CVEDataMeta.ID+">", "[", v.Impact.BaseMetricV3.ImpactScore, "]", v.Cve.Description.DescriptionData[0].Value)
 			// slackのwebhookよしなに
 			data := `{"text":"` + msg + `"}`
@@ -170,35 +170,35 @@ func main() {
 			defer resp.Body.Close()
 
 			fmt.Println(string(body))
-			setFlag(db, v.Cve.CVEDataMeta.ID)
+			setFlag(db, v.Cve.CVEDataMeta.ID, v.LastModifiedDate)
 		}
 	}
 }
 
-func dbCheck(db *sql.DB, id string) bool {
-	var flag string
-	rows, err := db.Query("select flag from docker where id = ?;", id)
+func dbCheck(db *sql.DB, id string, date string) bool {
+	var mod string
+	rows, err := db.Query("select modDate from docker where id = ?;", id)
 	if err != nil {
 		log.Fatal("a", err)
 	}
 
 	for rows.Next() {
-		err := rows.Scan(&flag)
+		err := rows.Scan(&mod)
 		if err != nil {
 			panic(err)
 		}
 	}
-	fmt.Println(id, flag)
+	fmt.Println(id, mod)
 
-	return flag != "1"
+	return mod != date
 }
 
-func setFlag(db *sql.DB, id string) {
-	stmt, err := db.Prepare("INSERT INTO docker VALUES( ?, 1 )")
+func setFlag(db *sql.DB, id string, date string) {
+	stmt, err := db.Prepare("INSERT INTO docker VALUES(?, ?)")
 	if err != nil {
 		log.Fatal(err)
 	}
-	if _, err := stmt.Exec(id); err != nil {
+	if _, err := stmt.Exec(id, date); err != nil {
 		log.Fatal(err)
 	}
 }
