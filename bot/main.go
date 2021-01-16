@@ -114,12 +114,6 @@ type Cves struct {
 	} `json:"result"`
 }
 
-// Database はcveが通知済みかチェックする用
-type Database struct {
-	ID   string
-	Flag int
-}
-
 func main() {
 	// nvdからjsonとってきてよしなに
 	nvdURL := "https://services.nvd.nist.gov/rest/json/cves/1.0"
