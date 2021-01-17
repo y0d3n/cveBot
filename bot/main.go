@@ -121,20 +121,19 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	defer resp.Body.Close()
 	byteArray, _ := ioutil.ReadAll(resp.Body)
-
 	jsonBytes := ([]byte)(byteArray)
 	cves := new(Cves)
-
 	if err := json.Unmarshal(jsonBytes, cves); err != nil {
 		log.Fatal(err)
 	}
+	fmt.Println(cves.Result.CVEDataTimestamp)
 
 	// envからslack botのurlを取得
 	slackURL := os.Getenv("cveBotUrl")
 
+	// dbをよしなに
 	db, err := sql.Open("mysql", "docker:docker@tcp(localhost:3306)/docker")
 	if err != nil {
 		log.Fatal(err)
@@ -142,10 +141,14 @@ func main() {
 	defer db.Close()
 
 	msg := ""
-
 	for _, v := range cves.Result.CVEItems {
 		if dbCheck(db, v.Cve.CVEDataMeta.ID, v.LastModifiedDate) {
-			msg = fmt.Sprint("<"+v.Cve.References.ReferenceData[0].URL+"|"+v.Cve.CVEDataMeta.ID+">", "[", v.Impact.BaseMetricV3.ImpactScore, "]", v.Cve.Description.DescriptionData[0].Value)
+			if v.LastModifiedDate == v.PublishedDate {
+				msg = ":new:"
+			} else {
+				msg = ":update:"
+			}
+			msg += fmt.Sprint("<"+v.Cve.References.ReferenceData[0].URL+"|"+v.Cve.CVEDataMeta.ID+">", "[", v.Impact.BaseMetricV3.ImpactScore, "]", v.Cve.Description.DescriptionData[0].Value)
 			// slackのwebhookよしなに
 			data := `{"text":"` + msg + `"}`
 			req, err := http.NewRequest(
@@ -179,7 +182,7 @@ func dbCheck(db *sql.DB, id string, date string) bool {
 	var mod string
 	rows, err := db.Query("select modDate from docker where id = ?;", id)
 	if err != nil {
-		log.Fatal("a", err)
+		log.Fatal(err)
 	}
 
 	for rows.Next() {
@@ -194,11 +197,19 @@ func dbCheck(db *sql.DB, id string, date string) bool {
 }
 
 func setFlag(db *sql.DB, id string, date string) {
-	stmt, err := db.Prepare("INSERT INTO docker VALUES(?, ?)")
+	dlt, err := db.Prepare("DELETE FROM docker WHERE id='?'")
 	if err != nil {
 		log.Fatal(err)
 	}
-	if _, err := stmt.Exec(id, date); err != nil {
+	if _, err := dlt.Exec(id, date); err != nil {
+		log.Fatal(err)
+	}
+
+	ins, err := db.Prepare("INSERT INTO docker VALUES(?, ?)")
+	if err != nil {
+		log.Fatal(err)
+	}
+	if _, err := ins.Exec(id, date); err != nil {
 		log.Fatal(err)
 	}
 }
