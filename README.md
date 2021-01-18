@@ -12,7 +12,7 @@ cronにいいかんじに置けばいい。
 ```txt
 $crontab -e
 (snip)
-cveBotUrl='[slack bot api url]'
+cveBotUrl='[slack webhook url]'
 */20 * * * * /path/to/github/cveBot/bot/bot
 ```
 
