@@ -13,7 +13,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-// Cves はjson用
+// Cves はjsonをパースする用
 type Cves struct {
 	ResultsPerPage int `json:"resultsPerPage"`
 	StartIndex     int `json:"startIndex"`
@@ -115,8 +115,10 @@ type Cves struct {
 }
 
 func main() {
+	var nvdURL, slackURL, msg string
+
 	// nvdからjsonとってきてよしなに
-	nvdURL := "https://services.nvd.nist.gov/rest/json/cves/1.0"
+	nvdURL = "https://services.nvd.nist.gov/rest/json/cves/1.0"
 	resp, err := http.Get(nvdURL)
 	if err != nil {
 		log.Fatal(err)
@@ -131,24 +133,25 @@ func main() {
 	fmt.Println(cves.Result.CVEDataTimestamp)
 
 	// envからslack botのurlを取得
-	slackURL := os.Getenv("cveBotUrl")
+	slackURL = os.Getenv("cveBotUrl")
 
-	// dbをよしなに
+	// dbに接続
 	db, err := sql.Open("mysql", "docker:docker@tcp(localhost:3306)/docker")
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer db.Close()
 
-	msg := ""
 	for _, v := range cves.Result.CVEItems {
 		if dbCheck(db, v.Cve.CVEDataMeta.ID, v.LastModifiedDate) {
+			// 通知するメッセージ作成
 			if v.LastModifiedDate == v.PublishedDate {
 				msg = ":new:"
 			} else {
 				msg = ":update:"
 			}
-			msg += fmt.Sprint("<"+v.Cve.References.ReferenceData[0].URL+"|"+v.Cve.CVEDataMeta.ID+">", "[", v.Impact.BaseMetricV3.ImpactScore, "]", v.Cve.Description.DescriptionData[0].Value)
+			msg += fmt.Sprint(" <"+v.Cve.References.ReferenceData[0].URL+"|"+v.Cve.CVEDataMeta.ID+">", "[", v.Impact.BaseMetricV3.ImpactScore, "]", v.Cve.Description.DescriptionData[0].Value)
+
 			// slackのwebhookよしなに
 			data := `{"text":"` + msg + `"}`
 			req, err := http.NewRequest(
@@ -171,13 +174,14 @@ func main() {
 				log.Fatal(err)
 			}
 			defer resp.Body.Close()
-
 			fmt.Println(string(body))
-			setFlag(db, v.Cve.CVEDataMeta.ID, v.LastModifiedDate)
+
+			update(db, v.Cve.CVEDataMeta.ID, v.LastModifiedDate)
 		}
 	}
 }
 
+// idとdateを元に、通知済みかチェック
 func dbCheck(db *sql.DB, id string, date string) bool {
 	var mod string
 	rows, err := db.Query("select modDate from docker where id = ?;", id)
@@ -196,7 +200,9 @@ func dbCheck(db *sql.DB, id string, date string) bool {
 	return mod != date
 }
 
-func setFlag(db *sql.DB, id string, date string) {
+// idをもとにdelete(重複削除)して、新しいレコードをinsert
+// (updateでは新しいcveを追加できないのでdeleteとinsertに分けた)
+func update(db *sql.DB, id string, date string) {
 	dlt, err := db.Prepare("DELETE FROM docker WHERE id=?")
 	if err != nil {
 		log.Fatal(err)
