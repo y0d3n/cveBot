@@ -188,7 +188,7 @@ func dbCheck(db *sql.DB, id string, date string) bool {
 	for rows.Next() {
 		err := rows.Scan(&mod)
 		if err != nil {
-			panic(err)
+			log.Fatal(err)
 		}
 	}
 	fmt.Println(id, mod)
@@ -197,14 +197,13 @@ func dbCheck(db *sql.DB, id string, date string) bool {
 }
 
 func setFlag(db *sql.DB, id string, date string) {
-	dlt, err := db.Prepare("DELETE FROM docker WHERE id='?'")
+	dlt, err := db.Prepare("DELETE FROM docker WHERE id=?")
 	if err != nil {
 		log.Fatal(err)
 	}
-	if _, err := dlt.Exec(id, date); err != nil {
+	if _, err := dlt.Exec(id); err != nil {
 		log.Fatal(err)
 	}
-
 	ins, err := db.Prepare("INSERT INTO docker VALUES(?, ?)")
 	if err != nil {
 		log.Fatal(err)
