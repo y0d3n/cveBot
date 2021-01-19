@@ -19,3 +19,11 @@ cveBotUrl='[slack webhook url]'
 ## db
 
 cve管理用のdb
+
+```txt
+$ sudo docker-compose up -d
+Creating network "db_default" with the default driver
+Creating db_db_1 ... done
+Attaching to db_db_1
+(snip)
+```
