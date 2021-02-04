@@ -16,18 +16,27 @@ import (
 
 func main() {
 	var msg, description string
-	cves := getCves()
 	sendSlack := initSlack()
+	cves, err := getCves()
+	if err != nil {
+		sendSlack(fmt.Sprint(err))
+		log.Fatal(err)
+	}
 
 	// dbに接続
 	db, err := sql.Open("mysql", "docker:docker@tcp(localhost:3306)/cves")
 	if err != nil {
+		sendSlack(fmt.Sprint(err))
 		log.Fatal(err)
 	}
 	defer db.Close()
 
 	for _, v := range cves.Result.CVEItems {
-		if isNotified(db, v.Cve.CVEDataMeta.ID, v.LastModifiedDate) {
+		isnotified, err := isNotified(db, v.Cve.CVEDataMeta.ID, v.LastModifiedDate)
+		if err != nil {
+			sendSlack(fmt.Sprint(err))
+		}
+		if isnotified {
 			// 通知するメッセージ作成
 			if v.LastModifiedDate == v.PublishedDate {
 				msg = ":new:"
@@ -38,29 +47,31 @@ func main() {
 			msg += fmt.Sprint(" <"+v.Cve.References.ReferenceData[0].URL+"|"+v.Cve.CVEDataMeta.ID+">", "[", v.Impact.BaseMetricV3.ImpactScore, "]", description)
 
 			sendSlack(msg)
-			update(db, v.Cve.CVEDataMeta.ID, v.LastModifiedDate)
+			err = update(db, v.Cve.CVEDataMeta.ID, v.LastModifiedDate)
+			if err != nil {
+				sendSlack(fmt.Sprint(err))
+			}
 		}
 	}
-
 }
 
 // nvdからjsonとってきてよしなに
-func getCves() *Cves {
+func getCves() (*Cves, error) {
 	var nvdURL string
 	nvdURL = "https://services.nvd.nist.gov/rest/json/cves/1.0"
+	cves := new(Cves)
 	resp, err := http.Get(nvdURL)
 	if err != nil {
-		log.Fatal(err)
+		return cves, err
 	}
 	defer resp.Body.Close()
 	byteArray, _ := ioutil.ReadAll(resp.Body)
 	jsonBytes := ([]byte)(byteArray)
-	cves := new(Cves)
 	if err := json.Unmarshal(jsonBytes, cves); err != nil {
-		log.Fatal(err)
+		return cves, err
 	}
 	fmt.Println(cves.Result.CVEDataTimestamp)
-	return cves
+	return cves, nil
 }
 
 // slackのwebhookよしなに
@@ -95,39 +106,40 @@ func initSlack() func(string) {
 }
 
 // idとdateを元に、通知済みかチェック
-func isNotified(db *sql.DB, id string, date string) bool {
+func isNotified(db *sql.DB, id string, date string) (bool, error) {
 	var mod string
 	rows, err := db.Query("select modDate from notified where id = ?;", id)
 	if err != nil {
-		log.Fatal(err)
+		return false, err
 	}
 
 	for rows.Next() {
 		err := rows.Scan(&mod)
 		if err != nil {
-			log.Fatal(err)
+			return false, err
 		}
 	}
 	fmt.Println(id, mod)
 
-	return mod != date
+	return mod != date, nil
 }
 
 // idをもとにdelete(重複削除)して、新しいレコードをinsert
 // (updateでは新しいcveを追加できないのでdeleteとinsertに分けた)
-func update(db *sql.DB, id string, date string) {
+func update(db *sql.DB, id string, date string) error {
 	dlt, err := db.Prepare("DELETE FROM notified WHERE id=?")
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	if _, err := dlt.Exec(id); err != nil {
-		log.Fatal(err)
+		return err
 	}
 	ins, err := db.Prepare("INSERT INTO notified VALUES(?, ?)")
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	if _, err := ins.Exec(id, date); err != nil {
-		log.Fatal(err)
+		return err
 	}
+	return nil
 }
